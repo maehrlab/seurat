@@ -885,8 +885,6 @@ RunMultiCCA <- function(
   }
   combined.object <- NormalizeData(combined.object)
   combined.object@meta.data$orig.ident <- sapply(combined.object@cell.names, ExtractField, 1)
-  combined.object <- ScaleData(object = combined.object)
-  combined.object@scale.data[is.na(x = combined.object@scale.data)] <- 0
   combined.object@var.genes <- genes.use
   cca.data <- results$ws[[1]]
   for(i in 2:length(object.list)){
@@ -911,22 +909,7 @@ RunMultiCCA <- function(
     slot = "key",
     new.data = "CC"
   )
-  combined.object <- ProjectDim(
-    object = combined.object,
-    reduction.type = "cca",
-    do.print = FALSE
-  )
-  combined.object <- SetDimReduction(
-    object = combined.object,
-    reduction.type = "cca",
-    slot = "gene.loadings",
-    new.data = GetGeneLoadings(
-      object = combined.object,
-      reduction.type = "cca",
-      use.full = TRUE,
-      genes.use = genes.use
-    )
-  )
+  
   parameters.to.store <- as.list(environment(), all = TRUE)[names(formals("RunMultiCCA"))]
   parameters.to.store$object.list <- NULL
   combined.object <- SetCalcParams(object = combined.object,
