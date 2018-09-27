@@ -755,6 +755,90 @@ RunCCA <- function(
   }
 }
 
+
+#' Perform Canonical Correlation Analysis with more than two groups, without memory-intensive merging operations.
+#'
+#' Runs a canonical correlation analysis
+#'
+#' @param object.list List of Seurat objects
+#' @param genes.use Genes to use in mCCA.
+#' @param num.ccs Number of canonical vectors to calculate
+#' @param standardize standardize scale.data matrices to be centered (mean zero)
+#' and scaled to have a standard deviation of 1.
+#' @param ... Additional parameters for InternalMultiCCA, such as niter.
+#'
+#' @return Returns the Seurat object with CCA stored in the @@dr$cca slot.
+#'
+#' @importFrom methods slot
+#'
+#' @export
+#'
+#' @examples
+#' pbmc_small
+#' 
+#' pbmc_small@meta.data$group <- sample( paste0( "group", 1:3 ) , replace = T )
+#' pbmc_cca <- LiteMultiCCA(object = pbmc_small, genes.use = pbmc_small@var.genes, num.ccs = 4)
+#' # Print results
+#' PrintDim(pbmc_cca,reduction.type = 'cca')
+#'
+GroupedMultiCCA <- function( object,
+                             group.by,
+                             genes.use = object@var.genes,
+                             num.ccs = 1,
+                             standardize = TRUE, 
+                             ... )
+{
+  ident = FetchData(object, group.by)[[1]]
+  get_data = function( group_name ){
+    object@scale.data[genes.use, ident == group_name]
+  }
+  group_names = as.character( unique ( ident ) )
+  cca.data = InternalMultiCCA( mat.list = lapply( group_names, get_data ), num.ccs = num.ccs, ... ) 
+  names(cca.data$ws) = group_names
+  embeddings = matrix(data = 0, nrow = length(ident), ncol = num.ccs)
+  for( group_name in group_names ){
+    embeddings[ident == group_name, ] = cca.data$ws[[ group_name ]]
+  }
+  object <- SetDimReduction(
+    object,
+    reduction.type = "cca",
+    slot = "cell.embeddings",
+    new.data = embeddings
+  )
+  object <- SetDimReduction(
+    object,
+    reduction.type = "cca",
+    slot = "key",
+    new.data = "CC"
+  )
+  object <- ScaleData( object, genes.use = genes.use )
+  object <- ProjectDim(
+    object = object,
+    reduction.type = "cca",
+    do.print = FALSE
+  )
+  object <- SetDimReduction(
+    object = object,
+    reduction.type = "cca",
+    slot = "gene.loadings",
+    new.data = GetGeneLoadings(
+      object = combined.object,
+      reduction.type = "cca",
+      use.full = TRUE,
+      genes.use = genes.use
+    )
+  )
+  parameters.to.store <- as.list(environment(), all = TRUE)[names(formals("GroupedMultiCCA"))]
+  parameters.to.store$object.list <- NULL
+  combined.object <- SetCalcParams(object = combined.object,
+                                   calculation = "GroupedMultiCCA",
+                                   ... = parameters.to.store
+  )
+  return( object )
+}
+
+
+
 #' Perform Canonical Correlation Analysis with more than two groups
 #'
 #' Runs a canonical correlation analysis
@@ -763,10 +847,10 @@ RunCCA <- function(
 #' @param genes.use Genes to use in mCCA.
 #' @param add.cell.ids Vector of strings to pass to \code{\link{RenameCells}} to
 #' give unique cell names
-#' @param niter Number of iterations to perform. Set by default to 25.
 #' @param num.ccs Number of canonical vectors to calculate
 #' @param standardize standardize scale.data matrices to be centered (mean zero)
 #' and scaled to have a standard deviation of 1.
+#' @param ... Additional parameters for InternalMultiCCA, such as niter.
 #'
 #' @return Returns a combined Seurat object with the CCA stored in the @@dr$cca slot.
 #'
@@ -793,9 +877,9 @@ RunMultiCCA <- function(
   object.list,
   genes.use,
   add.cell.ids = NULL,
-  niter = 25,
   num.ccs = 1,
-  standardize = TRUE
+  standardize = TRUE, 
+  ...
 ) {
   set.seed(42)
   if(length(object.list) < 3){
@@ -823,7 +907,7 @@ RunMultiCCA <- function(
   else{
     stop("input data not Seurat objects")
   }
-
+  
   if (!missing(add.cell.ids)) {
     if (length(add.cell.ids) != length(object.list)) {
       stop("add.cell.ids must have the same length as object.list")
@@ -837,59 +921,18 @@ RunMultiCCA <- function(
   if(length(names.intersect) > 0) {
     stop("duplicate cell names detected, please set 'add.cell.ids'")
   }
-
-  num.sets <- length(mat.list)
-  if(standardize){
-    for (i in 1:num.sets){
-      mat.list[[i]] <- Standardize(mat.list[[i]], display_progress = F)
-    }
-  }
-  ws <- list()
-  for (i in 1:num.sets){
-    ws[[i]] <- irlba(mat.list[[i]], nv = num.ccs)$v[, 1:num.ccs, drop = F]
-  }
-  ws.init <- ws
-  ws.final <- list()
-  cors <- NULL
-  for(i in 1:length(ws)){
-    ws.final[[i]] <- matrix(0, nrow=ncol(mat.list[[i]]), ncol=num.ccs)
-  }
-  for (cc in 1:num.ccs){
-    print(paste0("Computing CC ", cc))
-    ws <- list()
-    for (i in 1:length(ws.init)){
-      ws[[i]] <- ws.init[[i]][, cc]
-    }
-    cur.iter <- 1
-    crit.old <- -10
-    crit <- -20
-    storecrits <- NULL
-    while(cur.iter <= niter && abs(crit.old - crit)/abs(crit.old) > 0.001 && crit.old !=0){
-      crit.old <- crit
-      crit <- GetCrit(mat.list, ws, num.sets)
-      storecrits <- c(storecrits, crit)
-      cur.iter <- cur.iter + 1
-      for(i in 1:num.sets){
-        ws[[i]] <- UpdateW(mat.list, i, num.sets, ws, ws.final)
-      }
-    }
-    for(i in 1:length(ws)){
-      ws.final[[i]][, cc] <- ws[[i]]
-    }
-    cors <- c(cors, GetCors(mat.list, ws, num.sets))
-  }
-  results <- list(ws=ws.final, ws.init=ws.init, num.sets = num.sets, cors=cors)
+  
+  results <- InternalMultiCCA( mat.list, num.ccs, ... )
   combined.object <- object.list[[1]]
   for(i in 2:length(object.list)){
     combined.object <- MergeSeurat(object1 = combined.object, object2 = object.list[[i]], do.scale = F, do.center = F, do.normalize = F)
   }
+  rm( object.list ); gc()
   combined.object <- NormalizeData(combined.object)
   combined.object@meta.data$orig.ident <- sapply(combined.object@cell.names, ExtractField, 1)
-  combined.object <- ScaleData(object = combined.object)
-  combined.object@scale.data[is.na(x = combined.object@scale.data)] <- 0
   combined.object@var.genes <- genes.use
   cca.data <- results$ws[[1]]
-  for(i in 2:length(object.list)){
+  for(i in 2:length(results$ws)){
     cca.data <- rbind(cca.data, results$ws[[i]])
   }
   rownames(cca.data) <- colnames(combined.object@data)
@@ -911,6 +954,7 @@ RunMultiCCA <- function(
     slot = "key",
     new.data = "CC"
   )
+  combined.object <- ScaleData( combined.object, genes.use = genes.use )
   combined.object <- ProjectDim(
     object = combined.object,
     reduction.type = "cca",
