@@ -23,10 +23,6 @@ KClustDimension(object, dims.use = c(1, 2), reduction.use = "tsne",
 \value{
 Object with clustering information
 }
-\description{
-Find point clounds single cells in a low-dimensional space using k-means clustering.
-Can be useful for smaller datasets, where graph-based clustering can perform poorly
-}
 \examples{
 pbmc_small
 # K-means clustering on the first two tSNE dimensions
