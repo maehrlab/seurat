@@ -37,3 +37,9 @@ test_that("RunMultiCCA works with add.cell.ids", {
                                 add.cell.ids = c("A", "B", "C"))
   expect_s4_class(pbmc_multi_cca, "seurat")
 })
+
+test_that("LiteMultiCCA works with group.by", {
+  pbmc_small@meta.data$group = 1:4
+  pbmc_multi_cca <- LiteMultiCCA(pbmc_small, group.by = "group")
+  expect_s4_class(pbmc_multi_cca, "seurat")
+})

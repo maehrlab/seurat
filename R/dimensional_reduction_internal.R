@@ -234,7 +234,52 @@ CalcLDProj <- function(object, reduction.type, dims.use, genes.use) {
   return(low.dim.data)
 }
 
-# MultiCCA helper function - calculates critical value (when to stop iterating
+#' MultiCCA helper function - performs CCA
+#'
+#' @param mat.list list of input matrices
+#' @param num.ccs latent dimension to use
+#' @param num.sets How many input matrices
+#' @param niter Number of iterations to perform. Set by default to 25.
+#'
+InternalMultiCCA = function( mat.list, num.ccs, num.sets = length(mat.list), niter = 25 ){
+  ws = as.list(1:num.sets)
+  for (i in 1:num.sets){
+    ws[[i]] <- irlba(mat.list[[i]], nv = num.ccs)$v[, 1:num.ccs, drop = F]
+  }
+  ws.init <- ws
+  ws.final <- list()
+  cors <- NULL
+  for(i in 1:length(ws)){
+    ws.final[[i]] <- matrix(0, nrow=ncol(mat.list[[i]]), ncol=num.ccs)
+  }
+  for (cc in 1:num.ccs){
+    print(paste0("Computing CC ", cc))
+    ws <- list()
+    for (i in 1:length(ws.init)){
+      ws[[i]] <- ws.init[[i]][, cc]
+    }
+    cur.iter <- 1
+    crit.old <- -10
+    crit <- -20
+    storecrits <- NULL
+    while(cur.iter <= niter && abs(crit.old - crit)/abs(crit.old) > 0.001 && crit.old !=0){
+      crit.old <- crit
+      crit <- GetCrit(mat.list, ws, num.sets)
+      storecrits <- c(storecrits, crit)
+      cur.iter <- cur.iter + 1
+      for(i in 1:num.sets){
+        ws[[i]] <- UpdateW(mat.list, i, num.sets, ws, ws.final)
+      }
+    }
+    for(i in 1:length(ws)){
+      ws.final[[i]][, cc] <- ws[[i]]
+    }
+    cors <- c(cors, GetCors(mat.list, ws, num.sets))
+  }
+  return(list(ws=ws.final, ws.init=ws.init, num.sets = num.sets, cors=cors))
+}
+
+#MultiCCA helper function - calculates critical value (when to stop iterating
 # in the while loop)
 #
 # Modified from PMA package

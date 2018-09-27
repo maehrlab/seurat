@@ -4,8 +4,8 @@
 \alias{RunMultiCCA}
 \title{Perform Canonical Correlation Analysis with more than two groups}
 \usage{
-RunMultiCCA(object.list, genes.use, add.cell.ids = NULL, niter = 25,
-  num.ccs = 1, standardize = TRUE)
+RunMultiCCA(object.list, genes.use, add.cell.ids = NULL, num.ccs = 1,
+  standardize = TRUE, ...)
 }
 \arguments{
 \item{object.list}{List of Seurat objects}
@@ -15,12 +15,12 @@ RunMultiCCA(object.list, genes.use, add.cell.ids = NULL, niter = 25,
 \item{add.cell.ids}{Vector of strings to pass to \code{\link{RenameCells}} to
 give unique cell names}
 
-\item{niter}{Number of iterations to perform. Set by default to 25.}
-
 \item{num.ccs}{Number of canonical vectors to calculate}
 
 \item{standardize}{standardize scale.data matrices to be centered (mean zero)
 and scaled to have a standard deviation of 1.}
+
+\item{...}{Additional parameters for InternalMultiCCA, such as niter.}
 }
 \value{
 Returns a combined Seurat object with the CCA stored in the @dr$cca slot.
