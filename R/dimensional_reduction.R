@@ -719,14 +719,14 @@ RunCCA <- function(
     object <- SetDimReduction(
       object = object,
       reduction.type = "cca",
-      slot = "cell.embeddings",
-      new.data = cca.data
+      slot = "key",
+      new.data = "CC"
     )
     object <- SetDimReduction(
       object = object,
       reduction.type = "cca",
-      slot = "key",
-      new.data = "CC"
+      slot = "cell.embeddings",
+      new.data = cca.data
     )
     object <- ProjectDim(
       object = object,
@@ -796,20 +796,22 @@ GroupedMultiCCA <- function( object,
   cca.data = InternalMultiCCA( mat.list = lapply( group_names, get_data ), num.ccs = num.ccs, ... ) 
   names(cca.data$ws) = group_names
   embeddings = matrix(data = 0, nrow = length(ident), ncol = num.ccs)
+  rownames(embeddings) = object@cell.names
+  colnames(embeddings) = paste0("CC", 1:num.ccs)
   for( group_name in group_names ){
     embeddings[ident == group_name, ] = cca.data$ws[[ group_name ]]
   }
   object <- SetDimReduction(
     object,
     reduction.type = "cca",
-    slot = "cell.embeddings",
-    new.data = embeddings
+    slot = "key",
+    new.data = "CC"
   )
   object <- SetDimReduction(
     object,
     reduction.type = "cca",
-    slot = "key",
-    new.data = "CC"
+    slot = "cell.embeddings",
+    new.data = embeddings
   )
   object <- ScaleData( object, genes.use = genes.use )
   object <- ProjectDim(
@@ -822,7 +824,7 @@ GroupedMultiCCA <- function( object,
     reduction.type = "cca",
     slot = "gene.loadings",
     new.data = GetGeneLoadings(
-      object = combined.object,
+      object = object,
       reduction.type = "cca",
       use.full = TRUE,
       genes.use = genes.use
@@ -830,9 +832,9 @@ GroupedMultiCCA <- function( object,
   )
   parameters.to.store <- as.list(environment(), all = TRUE)[names(formals("GroupedMultiCCA"))]
   parameters.to.store$object.list <- NULL
-  combined.object <- SetCalcParams(object = combined.object,
-                                   calculation = "GroupedMultiCCA",
-                                   ... = parameters.to.store
+  object <- SetCalcParams(object = object,
+                          calculation = "GroupedMultiCCA",
+                          ... = parameters.to.store
   )
   return( object )
 }

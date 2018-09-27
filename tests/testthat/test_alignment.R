@@ -10,6 +10,8 @@ pbmc2 <- SubsetData(pbmc_small, cells.use = pbmc_small@cell.names[41:80])
 pbmc1@meta.data$group <- "group1"
 pbmc2@meta.data$group <- "group2"
 pbmc_cca <- RunCCA(pbmc1, pbmc2)
+pbmc_cca <- AlignSubspace(pbmc_cca, reduction.type = "cca", dims.align = 1:5, grouping.var = "group",
+                          genes.use = pbmc_cca@var.genes)
 pbmc_cca <- AlignSubspace(pbmc_cca, reduction.type = "cca", dims.align = 1:5, grouping.var = "group")
 
 test_that("Alignment returns expected values", {
@@ -37,3 +39,9 @@ test_that("RunMultiCCA works with add.cell.ids", {
                                 add.cell.ids = c("A", "B", "C"))
   expect_s4_class(pbmc_multi_cca, "seurat")
 })
+
+# test_that("GroupedMultiCCA works with add.cell.ids", {
+#   pbmc_small@meta.data$group = 1:4
+#   pbmc_multi_cca <- GroupedMultiCCA(pbmc_small, group.by = "group")
+#   expect_s4_class(pbmc_multi_cca, "seurat")
+# })
